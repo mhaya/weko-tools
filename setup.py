@@ -14,7 +14,7 @@ setup(
     description='weko-tools',
     long_description='readme',
     author='Masaharu Hayashi',
-    author_email='me@kennethreitz.com',
+    author_email='masaharu.hayashi3@gmail.com',
     install_requires=read_requirements(),
     dependency_links=['git+ssh://git@github.com/mhaya/weko-tools.git#egg=weko-tools'],
     url='https://github.com/mhaya/weko-tools',
