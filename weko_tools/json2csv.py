@@ -1,16 +1,40 @@
 # -*- coding: utf-8 -*-
 # https://goessner.net/articles/JsonPath/
 
-from jsonpath_ng.ext import parse
+from jsonpath_rw.parser import JsonPathParser
+from jsonpath_rw.lexer import JsonPathLexer
 import copy
 import re
+import pandas as pd
 import csv
+
+from logging import getLogger,StreamHandler,DEBUG,Formatter
+logger = getLogger(__name__) 
+handler = StreamHandler()
+handler.setLevel(DEBUG)
+logger.setLevel(DEBUG)
+logger.addHandler(handler)
+
 
 class JSON2Flat():
     """
         JSON2FlatJSON convert from structured JSON to flat JSON using JSONPath. 
     """
+
+    class JsonPathLexer(JsonPathLexer):
+        '''
+            A Lexical analyzer for JsonPath.
+        '''
+
+        def t_ID(self, t):
+            r'[@$_]*[a-zA-Z_@]+[a-zA-Z0-9_@\-]*'
+            t.type = self.reserved_words.get(t.value, 'ID')
+            return t
+
     
+    def parse(self,string):
+        return JsonPathParser(lexer_class=self.JsonPathLexer).parse(string)
+
     def listAllPaths(self,json):
         """ list all JSONPath from JSON"""
         header = []
@@ -19,7 +43,7 @@ class JSON2Flat():
             if ret is not None:
                 header = header + ret
         
-        header.sort()
+        #header.sort()
         return header
     
     def _getPath(self,doc,path):
@@ -44,7 +68,7 @@ class JSON2Flat():
     def listAllValues(self,json,paths):
         result = []
         for path in paths:
-            jsonpath_expr = parse(path)
+            jsonpath_expr = self.parse(path)
             ret = jsonpath_expr.find(json)
             for match in ret:
                 result.append(match.value)
@@ -109,17 +133,20 @@ class JSON2Flat():
                         elif type(nextIdx) is dict:
                             currentIdx = nextIdx
                 elif type(currentIdx) is list:
-                    p = re.compile(".*\\[([0-9]+)\\]")
-                    ret = p.match(pathParts[0])
-                    if ret is None:
-                        if len(currentIdx) == 0:
-                            if len(pathParts)==1:
-                                currentIdx.append({key:flat[path]})
+                    if len(pathParts)==1:
+                        currentIdx.append({key:flat[path]})
+                    else:
+                        tmp = {key : {}}
+                        currentIdx.append(tmp)
+                        currentIdx = tmp[key]
         return tree
 
 
+    
+
+
 class JSON2CSV():
-    def writeCSV(self,data,file):
+    def writeCSV(self,data,file,quoting=csv.QUOTE_NONNUMERIC,lineterminator='\r\n'):
         ret = []
         app = JSON2Flat()
         for row in data:
@@ -127,7 +154,8 @@ class JSON2CSV():
             ret.append(dat)
 
         header = ret[0].keys()
-        writer = csv.DictWriter(file,header, quoting=csv.QUOTE_NONNUMERIC)
+        writer = csv.DictWriter(file,header,quoting=quoting,lineterminator=lineterminator)
+        
         writer.writeheader()
         for d in ret:
             writer.writerow(d)
@@ -136,12 +164,12 @@ class JSON2CSV():
     def readCSV(self,file):
         ret = []
         app = JSON2Flat()
-        reader = csv.DictReader(file, quoting=csv.QUOTE_NONNUMERIC)
-
-        for row in reader:
-            dat = app.toStructure(row)
+        df = pd.read_csv(file,quoting=csv.QUOTE_NONNUMERIC)
+        for index,item in df.iterrows():
+            dat = app.toStructure(item.to_dict())
             ret.append(dat)
-        
+
+
         return ret
 
 
